@@ -1,0 +1,352 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+
+  <title>Spanish holocaust find</title>
+  <link rel="stylesheet" href="https://npmcdn.com/leaflet@0.7.7/dist/leaflet.css" >
+  <link rel="stylesheet" href="https://dc-js.github.io/dc.js/css/dc.min.css">
+  <!--link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous" -->
+  <style>
+
+   body
+   {
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      color: #222;
+      background-color: #eee;
+    }
+ 
+    #map {
+      height: 425px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    #age-chart {
+      width:100%;
+      margin: 0 auto;
+    }
+
+    #date-chart {
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .dc-data-count {
+      width: 100%;
+      height: 60px;
+    }
+
+  </style>
+
+</head>
+
+<body>
+  <div class="container">
+    <h1><img height=30 src="peaceflag.jpg" ></img>Spanish Civil War database: missing people</h1>
+    <h2>Find people that went missing during the Sapnish civil war, in German holocaust, & Spanish concentration camps.</h2> 
+    <p></b>Allow <b>45</b> seconds for the page to load the data...</b>.</p>
+
+
+    <div class="row">
+      <div class="col-md-8">
+        <h4>1. Filter by location where last seen alive</h4>
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <div style="width: 100%; display: table;">
+        <div style="display: table-row">
+            <div style="width: 600px; display: table-cell;">
+              <div class="dc-data-count"></div>
+              <h4>2. Filter by age when last seen</h4>
+              <div id="age-chart"></div>
+            </div>
+            <div style="display: table-cell;">
+              <h4>3. Date when last seen</h4>
+              <div id="date-chart"></div> 
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div>
+            <div class="dc-data-count">
+                <span class="filter-count"></span> selected out of <span class="total-count"></span> records | <a
+                    href="javascript:dc.filterAll(); dc.renderAll();">Reset All</a>
+            </div>
+        </div>
+        <table class="table table-hover dc-data-table">
+        </table>
+    </div>
+
+    
+    <div class="row">
+      <div class="col-md-8">
+        <h3>Thanks</h3>
+<p>These charts are adapted from <a href="https://github.com/chriswhong/crossfilter-geo-input">chirswhon</a> and use dc.js, square crossfitler and leaflet. This is a <b>partial</b> exploration set that contains a subset of 20.000 people.<b> <p>Data source: <a href="http://www.enrecuerdode.com">www.enrecuerdode.com</a>. 
+
+      </div>
+    </div>
+  </div>
+  
+  
+  <script src="https://dc-js.github.io/dc.js/js/d3.js"></script>
+  <script src="https://dc-js.github.io/dc.js/js/crossfilter.js"></script>
+  <script src="https://dc-js.github.io/dc.js/js/dc.js"></script> 
+  <script src="https://npmcdn.com/leaflet@0.7.7/dist/leaflet.js"></script>
+  <script src="//api.tiles.mapbox.com/mapbox.js/plugins/turf/v3.0.11/turf.min.js"></script>
+  <script>
+
+  var map = L.map('map').setView([42,10], 5);
+
+L.tileLayer('http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+  subdomains: 'abcd',
+  maxZoom: 19
+})  .addTo(map);
+
+//  L.tileLayer('http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',{ attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>' })
+//  .addTo(map);
+
+//originalentry,parsedentry,parsed2,lastseenalive,checklength,deathplace,surname,firstname,agewhenlastseen,birthplace,craft,deathlat,deathlng,birthlat,birthlng
+
+  d3.csv('geoh.csv', function (csvdata) {
+    // Since its a csv file we need to format the data a bit.
+    var dateFormat = d3.time.format('%d/%m/%Y');
+    var numberFormat = d3.format('i');
+    var k = 0
+    // parse csv to geojason format required by leaflet
+    gdata = {};
+    gdata.type = "FeatureCollection";
+    gdata.crs= {};
+    gdata.crs.type = "name";
+    gdata.crs.properties = {};
+    gdata.crs.properties.name = "urn:ogc:def:crs:OGC:1.3:CRS84";
+    gdata.features = [];
+
+    csvdata.forEach(function (d) {
+      k = k + 1;
+      dd = dateFormat.parse(d.lastseenalive);
+      if (dd==null) {        dd = dateFormat.parse('01/01/1900');}
+      console.log(k + "- " +dd + d.firstname + d.agewhenlastseen + d.deathplace + d.birthplace)
+      month = d3.time.month(dd); // pre-calculate month for better performance
+      year  = d3.time.year(dd); // pre-calculate month for better performance
+
+      // dummy lat lon raplce after by data...
+      //lat = 100*(Math.random()-0.5);
+      // lng = 100*(Math.random()-0.5);
+      f = {}
+      f.type ="Feature";
+      f.properties = {}
+      f.properties.latitude = d.deathlat;
+      f.properties.longitude = d.deathlng;
+      f.properties.dd = dd;
+      f.properties.month = month;
+      f.properties.details = " " + d.firstname + " " + d.surname  + "\n " + d.birthplace + " - " + d.deathplace + "\n"+d.lastseenalive;
+      f.properties.year = year;
+      f.properties.agewhenlastseen = d.agewhenlastseen;
+      f.properties.dd = dd;
+      f.properties.deathplace = d.deathplace;
+      f.geometry = {};
+      f.geometry.type = "Point";
+      f.geometry.coordinates = [d.deathlng, d.deathlat];
+      gdata.features.push(f);
+
+    });
+    console.log(gdata.features.length);
+
+    //create crossfilter and dimensions
+    var filter = crossfilter(gdata.features)
+    var all = filter.groupAll();
+    var everything = filter.dimension(function(d) {
+      return d
+    })
+
+    var geomDimension = filter.dimension(function(d) {
+      return d.geometry
+    })
+  
+    // Dimension by full date ?? IS THIS  USED?
+    var dateDim = filter.dimension(function (d) {
+        return d.properties.dd; // ? d.dd : dateFormat.parse('01/01/1900');
+    });
+
+    // Dimension by month
+    var monthDim = filter.dimension(function (d) {
+        return d.properties.month; // ? d.month : 1;
+    });
+
+    var monthGroup = monthDim.group();
+
+    // age at death dim
+    var ageDim = filter.dimension(function (d) {
+        return d.properties.agewhenlastseen; // ? d.agewhenlastseen : -1;
+    });
+    var ageGroup = ageDim.group();
+
+  
+    //add the data to the map
+    var geoJsonLayer = L.geoJson({
+      type: 'FeatureCollection',
+      features: geomDimension.top(Infinity)
+    }, {
+      pointToLayer: function (feature, latlng) {
+        return L.circleMarker(latlng, {
+          radius: 1,
+          fillColor: "#fff",
+          color: "#fff",
+          weight: 0,
+          opacity: 0.1,
+          fillOpacity: 0.8
+        })
+        .bindPopup(feature.properties.details.toString());
+      }
+    }).addTo(map)
+
+    //create charts
+    var ageChart = dc.barChart('#age-chart')
+
+    ageChart
+     
+        .width(450)
+        .height(200)
+        .margins({top: 10, right: 50, bottom: 30, left: 40})
+        .dimension(ageDim)
+        .group(ageGroup)
+        .elasticY(true)
+        // (_optional_) whether bar should be center to its x value. Not needed for ordinal chart, `default=false`
+        .centerBar(true)
+        // (_optional_) set gap between bars manually in px, `default=2`
+        .gap(1)
+        // (_optional_) set filter brush rounding
+        .round(dc.round.floor)
+        .alwaysUseRounding(true)
+        //.x(d3.scale.linear().domain([-25, 25]))
+        .x(d3.scale.linear().domain([2, 95]))
+
+        //.renderLabel(true)
+        .xAxisLabel("Age when missing (Edad al desaparecer)")
+        .yAxisLabel("Count of persons (personas)")
+        .renderHorizontalGridLines(true)
+        // Customize the filter displayed in the control span
+        .filterPrinter(function (filters) {
+            var filter = filters[0], s = '';
+            s += numberFormat(filter[0]) + ' years old (años)  to (a) ' + numberFormat(filter[1]) + ' years old (años)';
+            return s;
+        });
+    var dateChart = dc.barChart('#date-chart')//lineChart('#date-chart')
+
+    dateChart
+        .width(550)
+        .height(200)
+        .margins({top: 0, right: 50, bottom: 20, left: 40})
+        .dimension(monthDim)
+        .group(monthGroup)
+        .centerBar(true)
+        .gap(1)
+        .x(d3.time.scale().domain([new Date(1935, 0, 1), new Date(1945, 11, 31)]))
+        .round(d3.time.month.round)
+        .alwaysUseRounding(true)
+        .xUnits(d3.time.months)
+        //.xAxisLabel("When did they go missing (Cuando desaparecieron)")
+        .yAxisLabel("Count of persons (personas)")
+        .renderHorizontalGridLines(true)
+
+
+
+    var earthquakeCount = dc.dataCount('.dc-data-count');
+    earthquakeCount 
+      .dimension(filter)
+      .group(all)
+      .html({
+        some: '<strong>%filter-count</strong> selected out of <strong>%total-count</strong> records' +
+            ' | <a href=\'javascript:dc.filterAll(); dc.renderAll();\'>Reset All</a>',
+        all: 'All records selected. Please click on the graph or change the map view to apply filters.'
+      });
+
+    dc.renderAll();
+
+    //chart listeners
+
+    ageChart.on('filtered', function(chart, filter) {
+      updateMap()
+    })
+
+
+    dateChart.on('filtered', function(chart, filter) {
+      updateMap()
+    })
+
+    function updateMap() {
+      geoJsonLayer.clearLayers()
+      geoJsonLayer.addData({
+        type: 'FeatureCollection',
+        features: everything.top(Infinity)
+      })
+    }
+
+    //map listeners
+    map.on('moveend', function() {
+      updateMapFilter()
+    })
+
+    map.on('zoomend', function() {
+      updateMapFilter()
+    })
+
+    function updateMapFilter() {
+  
+      var bounds = map.getBounds(),
+        n=bounds._northEast.lat,
+        e=bounds._northEast.lng,
+        s=bounds._southWest.lat,
+        w=bounds._southWest.lng;
+
+      var boundsFeature = {
+        type: 'Feature',
+        geometry: {
+          type:'Polygon',
+          coordinates: [
+            [
+              [
+                w,
+                s
+              ],
+              [
+                w,
+                n
+              ],
+              [
+                e,
+                n
+              ],
+              [
+                e,
+                s
+              ],
+              [
+                w,
+                s
+              ]
+            ]
+          ]
+        }
+      }
+
+      geomDimension.filter(function(d) {
+        //make feature
+        var point = {
+          type: 'Feature',
+          geometry: d
+        }
+  
+        return turf.inside(point, boundsFeature)
+      })
+
+      dc.redrawAll();
+    }
+  })
+  </script>
+</body>
+</html>
